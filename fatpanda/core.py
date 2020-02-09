@@ -9,28 +9,31 @@ class _Mask(object):
     def __init__(self, condition):
         self.condition = condition
 
-class _ArithOperation(object):
-    __slots__ = ['new_column']
+class _VirtualSeries(object):
+    __slots__ = ['definition']
     def __init__(self, lh=None, rh=None, operator=None):
         if lh is not None and rh is not None and operator is not None:
             lh_col = self._get_col_for_type(lh)
             rh_col = self._get_col_for_type(rh)
-            self.new_column = f"({lh_col} {operator} {rh_col})"
+            self.definition = f"({lh_col} {operator} {rh_col})"
+
+    def __str__(self):
+        return f"VIRTUAL{self.definition}"
 
     def _get_col_for_type(self, obj):
         if isinstance(obj, _Series):
             return obj.raw_name
         elif isinstance(obj, (int,float)):
             return str(obj)
-        if isinstance(obj, _ArithOperation):
-            return obj.new_column
+        if isinstance(obj, _VirtualSeries):
+            return obj.definition
         else:
             raise TypeError("Arithmetic Operation not implemented for the type")
 
     def __another_arith_operator(self, other, operator):
         other_col = self._get_col_for_type(other)
-        blank_arith = _ArithOperation()
-        blank_arith.new_column = f"{self.new_column} {operator} {other_col}"
+        blank_arith = _VirtualSeries()
+        blank_arith.definition = f"({self.definition} {operator} {other_col})"
         return blank_arith
 
     def __add__(self, other):
@@ -70,24 +73,24 @@ class _Query(storeBase):
 
 
 class _Series(_Query):
-    def __init__(self, name, tablename, coltypes, derived=None, conditions=[], limit=None):
+    def __init__(self, name, tablename, coltypes, virtual=None, conditions=[], limit=None):
         self.name = name
         self.coltypes = coltypes
-        self.derived = derived
+        self.virtual = virtual
         cols = ['idx', self.expanded_name]
         super().__init__(tablename, columns=cols, conditions=conditions, limit=limit)
 
     @property
     def raw_name(self):
-        if isinstance(self.derived, str):
-            return self.derived
+        if isinstance(self.virtual, _VirtualSeries):
+            return self.virtual.definition
         else:
             return self.name
 
     @property
     def expanded_name(self):
-        if isinstance(self.derived, str):
-            return f"{self.derived} AS {self.name}"
+        if isinstance(self.virtual, _VirtualSeries):
+            return f"{self.virtual.definition} AS {self.name}"
         else:
             return self.name
 
@@ -95,7 +98,7 @@ class _Series(_Query):
         return self._select_query()
 
     def _shallow_copy(self):
-        return _Series(self.name, self.tablename, self.coltypes, self.derived, self.conditions, self.limit)
+        return _Series(self.name, self.tablename, self.coltypes, self.virtual, self.conditions, self.limit)
 
     def head(self, n=5):
        s = self._shallow_copy()
@@ -145,19 +148,19 @@ class _Series(_Query):
 
 
     def __add__(self, other):
-        return _ArithOperation(self, other, "+")
+        return _VirtualSeries(self, other, "+")
 
     def __sub__(self, other):
-        return _ArithOperation(self, other, "-")
+        return _VirtualSeries(self, other, "-")
 
     def __mul__(self, other):
-        return _ArithOperation(self, other, "*")
+        return _VirtualSeries(self, other, "*")
 
     def __div__(self, other):
-        return _ArithOperation(self, other, "/")
+        return _VirtualSeries(self, other, "/")
 
     def __mod__(self, other):
-        return _ArithOperation(self, other, "%")
+        return _VirtualSeries(self, other, "%")
 
 
 
@@ -165,10 +168,10 @@ class _Series(_Query):
 
 class _DataFrame(_Query):
 
-    def __init__(self, tablename, columns=None, conditions=[], limit=None, coltypes={}, derived={}):
+    def __init__(self, tablename, columns=None, conditions=[], limit=None, coltypes={}, virtual={}):
         super().__init__(tablename, columns=columns, conditions=conditions, limit=limit)
         self.coltypes = coltypes
-        self.derived = derived
+        self.virtual = virtual
         if not self.coltypes: self.__learn()
 
     @property
@@ -206,16 +209,16 @@ class _DataFrame(_Query):
 
     def _shallow_copy(self, columns=None):
         coltypes = self.coltypes.copy()
-        derived = self.derived.copy()
+        virtual = self.virtual.copy()
         if isinstance(columns, (list,set)):
             coltypes = {k:self.coltypes[k] for k in columns if k in self.coltypes}
-            derived = {k:self.derived[k] for k in columns if k in self.derived}
+            virtual = {k:self.virtual[k] for k in columns if k in self.virtual}
         return _DataFrame(self.tablename,
             columns=self.columns.copy(),
             conditions=self.conditions.copy(),
             limit=self.limit,
             coltypes=coltypes,
-            derived=derived
+            virtual=virtual
         )
 
 
@@ -254,19 +257,19 @@ class _DataFrame(_Query):
                 'idx': self.coltypes['idx'],
                 key: self.coltypes[key]
             }
-            derived = None
-            if key in self.derived:
-                derived = self.derived[key]
-            return _Series(key, tablename=self.name, coltypes=coltypes, derived=derived)
+            virtual = None
+            if key in self.virtual:
+                virtual = self.virtual[key]
+            return _Series(key, tablename=self.name, coltypes=coltypes, virtual=virtual)
 
 
     def __setitem__(self, key, value):
-        if isinstance(value, _ArithOperation):
+        if isinstance(value, _VirtualSeries):
             if key in self.columns:
                 self.columns.remove(key)
-            self.derived[key] = value.new_column
-            self.columns.append(f"{value.new_column} AS {key}")
-            self.coltypes[key] = f"Derived({value.new_column})"
+            self.virtual[key] = value
+            self.columns.append(f"{value.definition} AS {key}")
+            self.coltypes[key] = str(value)
         else:
             print(value)
             raise NotImplementedError
@@ -274,7 +277,7 @@ class _DataFrame(_Query):
         # if self.is_slice():
         #     raise Exception("Cannot set values on a slice")
         # if "key" not in self.columns:
-            # self.execute(ALTER TABLE table_name ADD new_column_name column_definition)
+            # self.execute(ALTER TABLE table_name ADD definition_name column_definition)
 
 
     def head(self, n=5):
