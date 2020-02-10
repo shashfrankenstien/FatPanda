@@ -1,20 +1,19 @@
 import sqlite3
-# from .utils import dotdict
 import os, sys
 
+from fatpanda import fpd_raw_connection
 
 def dict_factory(cursor, row):
-    d = {} # dotdict()
+    d = {}
     for idx, col in enumerate(cursor.description):
         d[col[0]] = row[idx]
     return d
 
 
-
 def db_connection(f, db=None):
     def wrapper(self, *args, **kwargs):
 
-        conn = sqlite3.connect(self.db_name)
+        conn = fpd_raw_connection(self.db_name)
         conn.row_factory = dict_factory
         cursor = conn.cursor()
         def tracer(frame, event, arg):
@@ -66,7 +65,7 @@ class storeBase(object):
 
 
     def connection(self, row_factory=None):
-        conn = sqlite3.connect(self.db_name)
+        conn = fpd_raw_connection(self.db_name)
         conn.row_factory = row_factory #dict_factory
         return conn, conn.cursor()
 
