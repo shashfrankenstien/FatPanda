@@ -12,13 +12,13 @@ def test_csv():
     print(df)
 
     filtered['P'] = (filtered['B'] + 1) * 20
-    print(filtered)
     print(filtered.get_sql())
+    print(filtered)
 
     P = df['P']
     print(P)
     print(type(P))
-
+    print(df[['A', 'B']])
 
 def test_sql():
     con = sqlite3.connect(fpd.SQLITE_NAME)
@@ -29,7 +29,7 @@ def test_sql():
 
 if __name__ == "__main__":
     test_csv()
-    test_sql()
+    # test_sql()
 
 
 

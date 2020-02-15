@@ -1,7 +1,9 @@
 import pandas as pd
 import sqlite3
+
 from .storeBase import storeBase, dict_factory
 from fatpanda import SQLITE_NAME
+
 
 
 class _Mask(object):
@@ -213,8 +215,10 @@ class _DataFrame(_Query):
         if isinstance(columns, (list,set)):
             coltypes = {k:self.coltypes[k] for k in columns if k in self.coltypes}
             virtual = {k:self.virtual[k] for k in columns if k in self.virtual}
+        else:
+            columns = self.columns.copy()
         return _DataFrame(self.tablename,
-            columns=self.columns.copy(),
+            columns=columns,
             conditions=self.conditions.copy(),
             limit=self.limit,
             coltypes=coltypes,
