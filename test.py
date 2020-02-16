@@ -22,14 +22,18 @@ def test_csv():
 
 def test_sql():
     con = sqlite3.connect(fpd.SQLITE_NAME)
-    df = fpd.read_sql_query("select * from csv1_csv_2_CONCAT", con)
+    cur = con.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    name = cur.fetchone()[0]
+    cur.close()
+    df = fpd.read_sql_query(f"select * from {name}", con)
 
     print(df)
     print(df[df['C']>5])
 
 if __name__ == "__main__":
     test_csv()
-    # test_sql()
+    test_sql()
 
 
 
