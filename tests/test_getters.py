@@ -20,6 +20,16 @@ def test_getter_columns(setup_fixture):
     assert(setup[cols].equals(df[cols].read_into_mem()))
 
 
+def test_getter_virtual(setup_fixture):
+    setup, test_file_name = setup_fixture
+    setup_df = setup.copy() # setting items on copy
+    df = fpd.read_csv(test_file_name)
+    setup_df['K'] = 20
+    df['K'] = 20
+    assert(isinstance(df['K'], fpd.core._Series))
+    assert(setup_df["K"].equals(df['K'].read_into_mem()))
+
+
 def test_head(setup_fixture):
     setup, test_file_name = setup_fixture
     df = fpd.read_csv(test_file_name)

@@ -13,45 +13,45 @@ class _Mask(object):
 
 class _VirtualSeries(object):
     __slots__ = ['definition']
-    def __init__(self, lh=None, rh=None, operator=None):
+    def __init__(self, lh=None, rh=None, operator=None, definition=None):
         if lh is not None and rh is not None and operator is not None:
             lh_col = self._get_col_for_type(lh)
             rh_col = self._get_col_for_type(rh)
             self.definition = f"({lh_col} {operator} {rh_col})"
+        else:
+            self.definition = str(definition)
 
     def __str__(self):
-        return f"VIRTUAL{self.definition}"
+        return self.definition
 
     def _get_col_for_type(self, obj):
         if isinstance(obj, _Series):
             return obj.raw_name
+        elif isinstance(obj, _VirtualSeries):
+            return obj.definition
         elif isinstance(obj, (int,float)):
             return str(obj)
-        if isinstance(obj, _VirtualSeries):
-            return obj.definition
         else:
-            raise TypeError("Arithmetic Operation not implemented for the type")
+            raise NotImplementedError(f"Not implemented for {type(obj)}")
 
-    def __another_arith_operator(self, other, operator):
-        other_col = self._get_col_for_type(other)
-        blank_arith = _VirtualSeries()
-        blank_arith.definition = f"({self.definition} {operator} {other_col})"
-        return blank_arith
 
     def __add__(self, other):
-        return self.__another_arith_operator(other, "+")
+        return _VirtualSeries(self, other, "+")
 
     def __sub__(self, other):
-        return self.__another_arith_operator(other, "-")
+        return _VirtualSeries(self, other, "-")
 
     def __mul__(self, other):
-        return self.__another_arith_operator(other, "*")
+        return _VirtualSeries(self, other, "*")
 
     def __div__(self, other):
-        return self.__another_arith_operator(other, "/")
+        return _VirtualSeries(self, other, "*1.0/") # Multiply by 1.0 to ensure float result
+
+    def __truediv__(self, other):
+        return self.__div__(other)
 
     def __mod__(self, other):
-        return self.__another_arith_operator(other, "%")
+        return _VirtualSeries(self, other, "%")
 
 
 class _Query(storeBase):
@@ -92,7 +92,7 @@ class _Series(_Query):
     @property
     def expanded_name(self):
         if isinstance(self.virtual, _VirtualSeries):
-            return f"{self.virtual.definition} AS {self.name}"
+            return f"{self.virtual.definition} AS `{self.name}`"
         else:
             return self.name
 
@@ -159,7 +159,10 @@ class _Series(_Query):
         return _VirtualSeries(self, other, "*")
 
     def __div__(self, other):
-        return _VirtualSeries(self, other, "/")
+        return _VirtualSeries(self, other, "*1.0/") # Multiply by 1.0 to ensure float result
+
+    def __truediv__(self, other):
+        return self.__div__(other)
 
     def __mod__(self, other):
         return _VirtualSeries(self, other, "%")
@@ -210,12 +213,12 @@ class _DataFrame(_Query):
                 self.columns.append(k)
 
     def _shallow_copy(self, columns=None):
-        coltypes = self.coltypes.copy()
-        virtual = self.virtual.copy()
         if isinstance(columns, (list,set)):
             coltypes = {k:self.coltypes[k] for k in columns if k in self.coltypes}
             virtual = {k:self.virtual[k] for k in columns if k in self.virtual}
         else:
+            coltypes = self.coltypes.copy()
+            virtual = self.virtual.copy()
             columns = self.columns.copy()
         return _DataFrame(self.tablename,
             columns=columns,
@@ -240,8 +243,15 @@ class _DataFrame(_Query):
             return "REAL"
         elif isinstance(val, bool):
             return "BOOLEAN"
-        else:
+        elif isinstance(val, str):
             return "TEXT"
+        # Following added for __setitem__
+        elif isinstance(val, _VirtualSeries):
+            return f"VIRTUAL({val})"
+        elif isinstance(val, _Series):
+            return f"SERIES"
+        else:
+            raise NotImplementedError(type(val))
 
 
     def __getitem__(self, key):
@@ -268,15 +278,25 @@ class _DataFrame(_Query):
 
 
     def __setitem__(self, key, value):
-        if isinstance(value, _VirtualSeries):
-            if key in self.columns:
-                self.columns.remove(key)
-            self.virtual[key] = value
-            self.columns.append(f"{value.definition} AS {key}")
-            self.coltypes[key] = str(value)
-        else:
-            print(value)
-            raise NotImplementedError
+        value_type = self.__value_type(value)
+        if key in self.columns:
+            self.columns.remove(key)
+
+        if "VIRTUAL" not in value_type:
+            if value_type in ["INTEGER", "REAL", "BOOL"]:
+                value = _VirtualSeries(definition=value)
+            elif value_type=="TEXT":
+                value = _VirtualSeries(definition=f'"{value}"')
+            elif value_type=="SERIES":
+                value = _VirtualSeries(definition=value.raw_name)
+            else:
+                print(value)
+                raise NotImplementedError
+
+        self.columns.append(f"{value.definition} AS `{key}`")
+        self.virtual[key] = value
+        self.coltypes[key] = self.__value_type(value)
+
         # CREATE TABLE equipments_backup AS SELECT * FROM csv_csv
         # if self.is_slice():
         #     raise Exception("Cannot set values on a slice")

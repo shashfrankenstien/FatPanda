@@ -4,20 +4,20 @@ import pytest
 
 def test_csv():
     df = fpd.concat_csv(["csv2.csv", "csv1.csv"])
-    print(df.head())
     filtered = df[df['A']==2]
 
-    df['P'] = df['B'] % df['C']
-    df['K'] = df['P'] * 100 * 2
-    print(df)
-
-    filtered['P'] = (filtered['B'] + 1) * 20
-    print(filtered.get_sql())
+    filtered['const_int'] = 20
+    filtered['const_bool'] = True
+    filtered['const_str'] = "PPPooo"
+    filtered['P'] = (filtered['B'] + 1) * filtered['const_int']
     print(filtered)
+    print(filtered.get_sql())
+    print()
 
-    P = df['P']
+    P = filtered['P']
     print(P[0])
     print(type(P))
+    print()
 
     cols = set(['A', 'B', 'A'])
     print(df[cols].head())
@@ -27,7 +27,6 @@ def test_csv():
 if __name__ == "__main__":
     # pytest.main()
     pytest.main(["-v"])
-    # test_csv()
-    # test_sql()
+    test_csv()
 
 
