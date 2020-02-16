@@ -1,0 +1,35 @@
+import pandas  as pd
+
+import fatpanda as fpd
+from tests import setup_fixture
+
+
+
+def test_getter_column_name(setup_fixture):
+    setup, test_file_name = setup_fixture
+    df = fpd.read_csv(test_file_name)
+    A = df["A"]
+    assert(isinstance(A, fpd.core._Series))
+    assert(setup["A"].equals(A.read_into_mem()))
+
+
+def test_getter_columns(setup_fixture):
+    setup, test_file_name = setup_fixture
+    df = fpd.read_csv(test_file_name)
+    cols = ['A', 'B']
+    assert(setup[cols].equals(df[cols].read_into_mem()))
+
+
+def test_head(setup_fixture):
+    setup, test_file_name = setup_fixture
+    df = fpd.read_csv(test_file_name)
+    assert(setup.head().equals(df.head().read_into_mem()))
+    assert(setup.head(2).equals(df.head(2).read_into_mem()))
+
+
+def test_getter_mask(setup_fixture):
+    setup, test_file_name = setup_fixture
+    df = fpd.read_csv(test_file_name)
+    pd_mask = setup['A'] == 2
+    fpd_mask = df['A'] == 2
+    assert(setup[pd_mask].equals(df[fpd_mask].read_into_mem()))

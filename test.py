@@ -1,11 +1,11 @@
 import fatpanda as fpd
 import sqlite3
+import pytest
 
 def test_csv():
     df = fpd.concat_csv(["csv2.csv", "csv1.csv"])
     print(df.head())
-    filtered = df[df['C']>5]
-
+    filtered = df[df['A']==2]
 
     df['P'] = df['B'] % df['C']
     df['K'] = df['P'] * 100 * 2
@@ -16,24 +16,18 @@ def test_csv():
     print(filtered)
 
     P = df['P']
-    print(P)
+    print(P[0])
     print(type(P))
-    print(df[['A', 'B']])
 
-def test_sql():
-    con = sqlite3.connect(fpd.SQLITE_NAME)
-    cur = con.cursor()
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    name = cur.fetchone()[0]
-    cur.close()
-    df = fpd.read_sql_query(f"select * from {name}", con)
+    cols = set(['A', 'B', 'A'])
+    print(df[cols].head())
 
-    print(df)
-    print(df[df['C']>5])
+
 
 if __name__ == "__main__":
-    test_csv()
-    test_sql()
-
+    # pytest.main()
+    pytest.main(["-v"])
+    # test_csv()
+    # test_sql()
 
 
