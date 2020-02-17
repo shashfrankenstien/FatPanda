@@ -4,8 +4,9 @@ import pytest
 
 def test_csv():
     df = fpd.concat_csv(["csv2.csv", "csv1.csv"])
-    filtered = df[df['A']==2]
+    print(df)
 
+    filtered = df[df['A']==2]
     filtered['const_int'] = 20
     filtered['const_bool'] = True
     filtered['const_str'] = "PPPooo"

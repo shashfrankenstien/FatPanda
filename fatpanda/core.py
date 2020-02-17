@@ -238,7 +238,7 @@ class _VirtualSeries(_Series):
 
 class _DataFrame(_Query):
 
-    def __init__(self, tablename, columns=None, conditions=[], limit=None, coltypes={}, virtual={}):
+    def __init__(self, tablename, columns=None, coltypes={}, conditions=[], limit=None, virtual={}):
         super().__init__(tablename, columns=columns, conditions=conditions, limit=limit)
         self.coltypes = coltypes
         self.virtual = virtual
@@ -327,17 +327,27 @@ class _DataFrame(_Query):
             for c in key:
                 if c not in self.columns:
                     raise KeyError(c)
-            df = self._shallow_copy(columns=key)
-            return df
+            return self._shallow_copy(columns=key)
         else:
             coltypes = {
                 'idx': self.coltypes['idx'],
                 key: self.coltypes[key]
             }
             if key in self.virtual:
-                return _VirtualSeries(key, tablename=self.name, coltypes=coltypes, virtual_definition=self.virtual[key])
+                return _VirtualSeries(key,
+                    tablename=self.name,
+                    coltypes=coltypes,
+                    virtual_definition=self.virtual[key],
+                    conditions=self.conditions.copy(),
+                    limit=self.limit
+                )
             else:
-                return _Series(key, tablename=self.name, coltypes=coltypes)
+                return _Series(key,
+                    tablename=self.name,
+                    coltypes=coltypes,
+                    conditions=self.conditions.copy(),
+                    limit=self.limit
+                )
 
 
     def __setitem__(self, key, value):
