@@ -39,15 +39,16 @@ def get_cursor():
 
 
 class storeBase(object):
-    def __init__(self, filepath):
+    def __init__(self, filepath, set_journal_mode=True):
         self.db_name = filepath
-        con, cur = self.connection()
-        try:
-            cur.execute('''PRAGMA journal_mode=WAL;''')
-            # Initial connect process
-            self.create(cur)
-        finally:
-            con.close()
+        if set_journal_mode:
+            con, cur = self.connection()
+            try:
+                cur.execute('''PRAGMA journal_mode=WAL;''')
+                # Initial connect process
+                self.create(cur)
+            finally:
+                con.close()
 
 
     def execute(self, sql, args=(), many=False, autocommit=True, row_factory=None):

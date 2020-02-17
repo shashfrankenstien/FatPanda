@@ -34,8 +34,12 @@ def test_arith_columns(setup_fixture):
     df['A'] = df['A'] + df['A']
     assert(setup_df["A"].equals(df['A'].read_into_mem()))
 
-    setup_df['Z'] = setup_df['A']
-    df['Z'] = df['A']
+    setup_df['Y'] = setup_df['B']
+    df['Y'] = df['B']
+    assert(setup_df["Y"].equals(df['Y'].read_into_mem()))
+
+    setup_df['Z'] = setup_df['Div']
+    df['Z'] = df['Div']
     assert(setup_df["Z"].equals(df['Z'].read_into_mem()))
 
 

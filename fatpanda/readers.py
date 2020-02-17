@@ -1,30 +1,16 @@
 import pandas as pd
 import sqlite3
 import os
-import re
-import random, string
-import hashlib
+
 
 from .core import _DataFrame
+from .utils import source_hasher
 from fatpanda import fpd_raw_connection, SQLITE_NAME
 
 
 # ------------------------------------------------------------
 #                           Helpers
 # ------------------------------------------------------------
-
-
-def salt(n):
-    return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(n)])
-
-def source_hasher(source):
-    return "T_"+hashlib.sha256(source.encode()).hexdigest()
-
-
-def splitup(l, n):
-	for i in range(0,len(l),n):
-		yield l[i:i+n]
-
 
 
 def _table_loader(chunk, conn, tablename, if_exists):

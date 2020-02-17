@@ -2,61 +2,15 @@ import pandas as pd
 import sqlite3
 
 from .storeBase import storeBase, dict_factory
+from .utils import salt
 from fatpanda import SQLITE_NAME
 
 
 
-class _Mask(object):
-    __slots__ = ['condition']
-    def __init__(self, condition):
-        self.condition = condition
-
-class _VirtualSeries(object):
-    __slots__ = ['definition']
-    def __init__(self, lh=None, rh=None, operator=None, definition=None):
-        if lh is not None and rh is not None and operator is not None:
-            lh_col = self._get_col_for_type(lh)
-            rh_col = self._get_col_for_type(rh)
-            self.definition = f"({lh_col} {operator} {rh_col})"
-        else:
-            self.definition = str(definition)
-
-    def __str__(self):
-        return self.definition
-
-    def _get_col_for_type(self, obj):
-        if isinstance(obj, _Series):
-            return obj.raw_name
-        elif isinstance(obj, _VirtualSeries):
-            return obj.definition
-        elif isinstance(obj, (int,float)):
-            return str(obj)
-        else:
-            raise NotImplementedError(f"Not implemented for {type(obj)}")
-
-
-    def __add__(self, other):
-        return _VirtualSeries(self, other, "+")
-
-    def __sub__(self, other):
-        return _VirtualSeries(self, other, "-")
-
-    def __mul__(self, other):
-        return _VirtualSeries(self, other, "*")
-
-    def __div__(self, other):
-        return _VirtualSeries(self, other, "*1.0/") # Multiply by 1.0 to ensure float result
-
-    def __truediv__(self, other):
-        return self.__div__(other)
-
-    def __mod__(self, other):
-        return _VirtualSeries(self, other, "%")
-
 
 class _Query(storeBase):
-    def __init__(self, tablename, columns=None, conditions=[], limit=None):
-        super().__init__(SQLITE_NAME)
+    def __init__(self, tablename, columns=None, conditions=[], limit=None, set_journal_mode=True):
+        super().__init__(SQLITE_NAME, set_journal_mode=set_journal_mode)
         self.columns = columns
         self.tablename = tablename
         self.conditions = conditions
@@ -74,33 +28,93 @@ class _Query(storeBase):
         return f"SELECT {','.join(columns)} FROM {self.tablename} {where_clause} {limit_stmt}".strip()
 
 
+class _Mask(object):
+    __slots__ = ['condition']
+    def __init__(self, condition):
+        self.condition = condition
+
+
+
+
+# class _VirtualSeries(object):
+#     __slots__ = ['definition']
+#     def __init__(self, lh=None, rh=None, operator=None, definition=None):
+#         if lh is not None and rh is not None and operator is not None:
+#             lh_col = self._get_col_for_type(lh)
+#             rh_col = self._get_col_for_type(rh)
+#             self.definition = f"({lh_col} {operator} {rh_col})"
+#         else:
+#             self.definition = str(definition)
+
+#     def __str__(self):
+#         return self.definition
+
+#     def _get_col_for_type(self, obj):
+#         if isinstance(obj, _Series):
+#             return obj.raw_name
+#         elif isinstance(obj, _VirtualSeries):
+#             return obj.definition
+#         elif isinstance(obj, (int,float)):
+#             return str(obj)
+#         else:
+#             raise NotImplementedError(f"Not implemented for {type(obj)}")
+
+
+#     def __add__(self, other):
+#         return _VirtualSeries(self, other, "+")
+
+#     def __sub__(self, other):
+#         return _VirtualSeries(self, other, "-")
+
+#     def __mul__(self, other):
+#         return _VirtualSeries(self, other, "*")
+
+#     def __div__(self, other):
+#         return _VirtualSeries(self, other, "*1.0/") # Multiply by 1.0 to ensure float result
+
+#     def __truediv__(self, other):
+#         return self.__div__(other)
+
+#     def __mod__(self, other):
+#         return _VirtualSeries(self, other, "%")
+
+
+
+
+
 class _Series(_Query):
-    def __init__(self, name, tablename, coltypes, virtual=None, conditions=[], limit=None):
-        self.name = name
+    def __init__(self, name, tablename, coltypes, conditions=[], limit=None):
+        self._name = name
         self.coltypes = coltypes
-        self.virtual = virtual
         cols = ['idx', self.expanded_name]
-        super().__init__(tablename, columns=cols, conditions=conditions, limit=limit)
+        super().__init__(tablename, columns=cols, conditions=conditions, limit=limit, set_journal_mode=False)
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
 
     @property
     def raw_name(self):
-        if isinstance(self.virtual, _VirtualSeries):
-            return self.virtual.definition
-        else:
-            return self.name
+        return self._name
+
+    @property
+    def type_name(self):
+        return f"SERIES({self.coltypes[self._name]})"
 
     @property
     def expanded_name(self):
-        if isinstance(self.virtual, _VirtualSeries):
-            return f"{self.virtual.definition} AS `{self.name}`"
-        else:
-            return self.name
+        return self._name
+
 
     def get_sql(self):
         return self._select_query()
 
     def _shallow_copy(self):
-        return _Series(self.name, self.tablename, self.coltypes, self.virtual, self.conditions, self.limit)
+        return _Series(self.name, self.tablename, self.coltypes, self.conditions, self.limit)
 
     def head(self, n=5):
        s = self._shallow_copy()
@@ -149,25 +163,76 @@ class _Series(_Query):
         return self.__prep_mask(value, ">=")
 
 
+    def _arithmetic_helperator(self, other, operator):
+        if isinstance(other, _Series):
+            if self.tablename!=other.tablename:
+                raise NotImplementedError("Arithmetic operation across DataFrames not supported")
+            rh_col = other.raw_name
+        elif isinstance(other, (int,float)):
+            rh_col = str(other)
+        else:
+            raise NotImplementedError(f"Not implemented for {type(other)}")
+
+        definition = f"({self.raw_name} {operator} {rh_col})"
+        dummy_name = ''
+        while dummy_name in self.columns:
+            dummy_name = salt(10)
+        coltypes = {"idx":self.coltypes['idx'], dummy_name:None}
+        # Setting dummy name and coltype to None. These attributes will be reset later
+        return _VirtualSeries(dummy_name, definition, self.tablename, coltypes, self.conditions, self.limit)
+
+
     def __add__(self, other):
-        return _VirtualSeries(self, other, "+")
+        return self._arithmetic_helperator(other, "+")
 
     def __sub__(self, other):
-        return _VirtualSeries(self, other, "-")
+        return self._arithmetic_helperator(other, "-")
 
     def __mul__(self, other):
-        return _VirtualSeries(self, other, "*")
+        return self._arithmetic_helperator(other, "*")
 
     def __div__(self, other):
-        return _VirtualSeries(self, other, "*1.0/") # Multiply by 1.0 to ensure float result
+        return self._arithmetic_helperator(other, "*1.0/") # Multiply by 1.0 to ensure float result
 
     def __truediv__(self, other):
         return self.__div__(other)
 
     def __mod__(self, other):
-        return _VirtualSeries(self, other, "%")
+        return self._arithmetic_helperator(other, "%")
 
 
+class _VirtualSeries(_Series):
+
+    def __init__(self, name, virtual_definition, tablename, coltypes, conditions=[], limit=None):
+        self._virtual_definition = str(virtual_definition)
+        if coltypes[name] is None:
+            coltypes[name] = self.type_name
+        super().__init__(name, tablename, coltypes, conditions, limit)
+
+    def __setattr__(self, name, value):
+        if name=="name":
+            self.coltypes[value] = self.coltypes[self._name]
+            self._name = value
+            del self.coltypes[self._name]
+        super().__setattr__(name, value)
+
+    @property
+    def raw_name(self):
+        return self._virtual_definition
+
+    @property
+    def type_name(self):
+        return f"VIRTUAL({self.raw_name})"
+
+    @property
+    def expanded_name(self):
+        return f"{self._virtual_definition} AS `{self.name}`"
+
+    def _shallow_copy(self):
+        return _VirtualSeries(self.name, self._virtual_definition, self.tablename, self.coltypes, self.conditions, self.limit)
+
+    def __setitem__(self, key, value):
+        raise TypeError("Cannot set item on VirtualSeries")
 
 
 
@@ -246,10 +311,8 @@ class _DataFrame(_Query):
         elif isinstance(val, str):
             return "TEXT"
         # Following added for __setitem__
-        elif isinstance(val, _VirtualSeries):
-            return f"VIRTUAL({val})"
-        elif isinstance(val, _Series):
-            return f"SERIES"
+        elif isinstance(val, (_Series, _VirtualSeries)):
+            return val.type_name
         else:
             raise NotImplementedError(type(val))
 
@@ -271,31 +334,35 @@ class _DataFrame(_Query):
                 'idx': self.coltypes['idx'],
                 key: self.coltypes[key]
             }
-            virtual = None
             if key in self.virtual:
-                virtual = self.virtual[key]
-            return _Series(key, tablename=self.name, coltypes=coltypes, virtual=virtual)
+                return _VirtualSeries(key, tablename=self.name, coltypes=coltypes, virtual_definition=self.virtual[key])
+            else:
+                return _Series(key, tablename=self.name, coltypes=coltypes)
 
 
     def __setitem__(self, key, value):
         value_type = self.__value_type(value)
-        if key in self.columns:
-            self.columns.remove(key)
-
-        if "VIRTUAL" not in value_type:
+        if "VIRTUAL" in value_type:
+            value.name = key
+        else:
             if value_type in ["INTEGER", "REAL", "BOOL"]:
-                value = _VirtualSeries(definition=value)
+                definition = value
             elif value_type=="TEXT":
-                value = _VirtualSeries(definition=f'"{value}"')
-            elif value_type=="SERIES":
-                value = _VirtualSeries(definition=value.raw_name)
+                definition = f'"{value}"'
+            elif "SERIES" in value_type:
+                definition = value.raw_name
             else:
                 print(value)
                 raise NotImplementedError
+            coltypes = {'idx':self.coltypes['idx'], key:None}
+            value = _VirtualSeries(key, tablename=self.name, coltypes=coltypes, virtual_definition=definition)
 
-        self.columns.append(f"{value.definition} AS `{key}`")
-        self.virtual[key] = value
-        self.coltypes[key] = self.__value_type(value)
+        if key in self.columns:
+            self.columns.remove(key)
+
+        self.columns.append(value.expanded_name)
+        self.virtual[key] = value.raw_name
+        self.coltypes[key] = value.type_name
 
         # CREATE TABLE equipments_backup AS SELECT * FROM csv_csv
         # if self.is_slice():
