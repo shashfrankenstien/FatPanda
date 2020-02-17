@@ -1,5 +1,5 @@
 import pytest
-import pandas  as pd
+import pandas as pd
 from io import StringIO
 import os
 
@@ -21,3 +21,16 @@ def setup_fixture():
     yield df, test_file_name
     if os.path.isfile(test_file_name):
         os.remove(test_file_name)
+
+def _read_into_mem(df):
+    if hasattr(df, 'read_into_mem'):
+        return df.read_into_mem()
+    else:
+        return df
+
+def assert_df_equal(a, b):
+    a = _read_into_mem(a)
+    b = _read_into_mem(b)
+    if isinstance(b, pd.DataFrame):
+        b = b[list(a)] # Ensure column order is same
+    assert ((a == b) | ((a != a) & (b != b))).values.all() == True

@@ -29,54 +29,15 @@ class _Query(storeBase):
 
 
 class _Mask(object):
-    __slots__ = ['condition']
-    def __init__(self, condition):
-        self.condition = condition
+    __slots__ = ['name', 'value', 'operation']
+    def __init__(self, name, value, operation):
+        self.name = name
+        self.value = value if not isinstance(value, str) else f'"{value}"'
+        self.operation = operation
 
-
-
-
-# class _VirtualSeries(object):
-#     __slots__ = ['definition']
-#     def __init__(self, lh=None, rh=None, operator=None, definition=None):
-#         if lh is not None and rh is not None and operator is not None:
-#             lh_col = self._get_col_for_type(lh)
-#             rh_col = self._get_col_for_type(rh)
-#             self.definition = f"({lh_col} {operator} {rh_col})"
-#         else:
-#             self.definition = str(definition)
-
-#     def __str__(self):
-#         return self.definition
-
-#     def _get_col_for_type(self, obj):
-#         if isinstance(obj, _Series):
-#             return obj.raw_name
-#         elif isinstance(obj, _VirtualSeries):
-#             return obj.definition
-#         elif isinstance(obj, (int,float)):
-#             return str(obj)
-#         else:
-#             raise NotImplementedError(f"Not implemented for {type(obj)}")
-
-
-#     def __add__(self, other):
-#         return _VirtualSeries(self, other, "+")
-
-#     def __sub__(self, other):
-#         return _VirtualSeries(self, other, "-")
-
-#     def __mul__(self, other):
-#         return _VirtualSeries(self, other, "*")
-
-#     def __div__(self, other):
-#         return _VirtualSeries(self, other, "*1.0/") # Multiply by 1.0 to ensure float result
-
-#     def __truediv__(self, other):
-#         return self.__div__(other)
-
-#     def __mod__(self, other):
-#         return _VirtualSeries(self, other, "%")
+    @property
+    def condition(self):
+        return f"{self.name} {self.operation} {self.value}"
 
 
 
@@ -141,8 +102,8 @@ class _Series(_Query):
         raise NotImplementedError
 
 
-    def __prep_mask(self, value, condition):
-        return _Mask(f"{self.name} {condition} {value}")
+    def __prep_mask(self, value, operation):
+        return _Mask(self.name, value, operation)
 
     def __eq__(self, value):
         return self.__prep_mask(value, "=")
@@ -244,9 +205,11 @@ class _DataFrame(_Query):
         self.virtual = virtual
         if not self.coltypes: self.__learn()
 
+
     @property
     def name(self): # proxy self.name for self.tablename
         return self.tablename
+
 
     def __learn(self):
         if self.columns == None:
@@ -268,6 +231,7 @@ class _DataFrame(_Query):
                 else:
                     raise
 
+
     def __learn_slice(self):
         sample = self.execute(self.get_sql(limit=1), row_factory=dict_factory)
         if len(sample) > 0:
@@ -276,6 +240,7 @@ class _DataFrame(_Query):
             for k,v in sample.items():
                 self.coltypes[k] = self.__value_type(v)
                 self.columns.append(k)
+
 
     def _shallow_copy(self, columns=None):
         if isinstance(columns, (list,set)):
@@ -296,6 +261,7 @@ class _DataFrame(_Query):
 
     def is_slice(self):
         return isinstance(self.limit, int)
+
 
     def get_sql(self, limit=None):
         return self._select_query(limit)
@@ -386,12 +352,14 @@ class _DataFrame(_Query):
         df.limit = n
         return df
 
+
     def read_into_mem(self):
         data = self.execute(self.get_sql(), row_factory=dict_factory)
         if data:
             return pd.DataFrame(data).set_index("idx", drop=True)
         else:
             return pd.DataFrame()
+
 
     def __str__(self):
         return str(self.read_into_mem()) + "\n" + str(self.coltypes)

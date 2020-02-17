@@ -1,10 +1,11 @@
 import sqlite3
 import os, sys
+from collections import OrderedDict
 
 from fatpanda import fpd_raw_connection
 
 def dict_factory(cursor, row):
-    d = {}
+    d = OrderedDict()
     for idx, col in enumerate(cursor.description):
         d[col[0]] = row[idx]
     return d
