@@ -69,3 +69,31 @@ def test_getter_mask(setup_fixture):
     fpd_mask = df['B'] <= 5
     assert_df_equal(setup[pd_mask], df[fpd_mask])
 
+
+
+def test_getter_mask2(setup_fixture):
+    setup, test_file_name = setup_fixture
+    df = fpd.read_csv(test_file_name)
+
+    pd_mask = (setup['D']=='man') & (setup['A']==2)
+    fpd_mask = (df['D']=='man') & (df['A']==2)
+    assert_df_equal(setup[pd_mask], df[fpd_mask])
+
+    pd_mask = (setup['D']=='man') | (setup['A']==2)
+    fpd_mask = (df['D']=='man') | (df['A']==2)
+    assert_df_equal(setup[pd_mask], df[fpd_mask])
+
+    assert_df_equal(setup[~pd_mask], df[~fpd_mask])
+
+
+def test_getter_mask_virtual(setup_fixture):
+    setup, test_file_name = setup_fixture
+    df = fpd.read_csv(test_file_name)
+    setup_df = setup.copy() # setting items on a copy
+
+    setup_df['Virtual'] = (setup_df['B'] + 10) * setup_df['C']
+    df['Virtual'] = (df['B'] + 10) * df['C']
+
+    pd_mask = (setup_df['Virtual']>45) & (setup_df['Virtual']<979)
+    fpd_mask = (df['Virtual']>45) & (df['Virtual']<979)
+    assert_df_equal(setup_df[pd_mask], df[fpd_mask])

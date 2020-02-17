@@ -29,18 +29,36 @@ class _Query(storeBase):
 
 
 class _Mask(object):
-    __slots__ = ['name', 'value', 'operation']
-    def __init__(self, name, value, operation):
-        self.name = name
-        self.value = value if not isinstance(value, str) else f'"{value}"'
+    __slots__ = ['lhs', 'rhs', 'operation']
+    def __init__(self, lhs, rhs, operation):
+        if isinstance(lhs, _Mask):
+            self.lhs = lhs.condition
+        else:
+            self.lhs = lhs
+
+        if isinstance(rhs, str) and rhs.lower()!='null':
+            self.rhs = f'"{rhs}"'
+        elif isinstance(rhs, _Mask):
+            self.rhs = rhs.condition
+        else:
+            self.rhs = rhs
+
         self.operation = operation
 
     @property
     def condition(self):
-        return f"{self.name} {self.operation} {self.value}"
+        return f"({self.lhs} {self.operation} {self.rhs})"
 
+    def __and__(self, other):
+        return _Mask(self, other, "AND")
 
+    def __or__(self, other):
+        return _Mask(self, other, "OR")
 
+    def __invert__(self):
+        mask_false = _Mask(self, 0, "=")
+        mask_null = _Mask(self, "NULL", "IS")
+        return _Mask(mask_false.condition, mask_null, "OR")
 
 
 class _Series(_Query):
