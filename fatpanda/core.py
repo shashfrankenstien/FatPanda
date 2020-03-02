@@ -318,6 +318,8 @@ class _DataFrame(_Query, _TypesMixin):
     def __getitem__(self, key):
         if isinstance(key, slice):
             key = _Mask.from_slice(self._index_col, key)
+            if key is None:
+                return self._shallow_copy()
 
         if isinstance(key, _Mask):
             df = self._shallow_copy()

@@ -73,7 +73,10 @@ class _Mask(object):
             mod_val = f"(({lhs}-{start})%{slc.step})"
             masks.append(cls(mod_val, 0, "=="))
 
-        return reduce(lambda m1,m2: m1 & m2, masks)
+        if masks:
+            return reduce(lambda m1,m2: m1 & m2, masks)
+        else:
+            return None
 
 
 
