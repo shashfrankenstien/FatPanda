@@ -6,13 +6,13 @@ from tests import setup_fixture, assert_df_equal
 
 
 def test_read_csv(setup_fixture):
-    setup, test_file_name = setup_fixture
+    setup, _, test_file_name = setup_fixture
     df = fpd.read_csv(test_file_name)
     assert_df_equal(setup, df)
 
 
 def test_concat_csv(setup_fixture):
-    setup, test_file_name = setup_fixture
+    setup, _, test_file_name = setup_fixture
     filenames = [test_file_name, test_file_name]
     for f in filenames:
         setup.to_csv(f, index=False)
@@ -23,8 +23,7 @@ def test_concat_csv(setup_fixture):
 
 
 def test_read_sql_query(setup_fixture):
-    _, test_file_name = setup_fixture
-    csvdf = fpd.read_csv(test_file_name)
+    _, csvdf, _ = setup_fixture
 
     con = sqlite3.connect(fpd.SQLITE_NAME)
     df = fpd.read_sql_query(f"select * from {csvdf.tablename}", con)

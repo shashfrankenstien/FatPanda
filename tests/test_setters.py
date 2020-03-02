@@ -6,9 +6,9 @@ from tests import setup_fixture, assert_df_equal
 
 
 def test_arith_columns(setup_fixture):
-    setup, test_file_name = setup_fixture
-    df = fpd.read_csv(test_file_name)
+    setup, _, test_file_name = setup_fixture
     setup_df = setup.copy() # setting items on a copy
+    df = fpd.read_csv(test_file_name)
 
     setup_df['Add'] = setup_df['B'] + setup_df['C']
     df['Add'] = df['B'] + df['C']
@@ -46,9 +46,9 @@ def test_arith_columns(setup_fixture):
 
 
 def test_constants(setup_fixture):
-    setup, test_file_name = setup_fixture
-    df = fpd.read_csv(test_file_name)
+    setup, _, test_file_name = setup_fixture
     setup_df = setup.copy() # setting items on a copy
+    df = fpd.read_csv(test_file_name)
 
     setup_df['const_int'] = 20
     df['const_int'] = 20
@@ -63,9 +63,9 @@ def test_constants(setup_fixture):
 
 
 def test_arith_constants(setup_fixture):
-    setup, test_file_name = setup_fixture
-    df = fpd.read_csv(test_file_name)
+    setup, _, test_file_name = setup_fixture
     setup_df = setup.copy() # setting items on a copy
+    df = fpd.read_csv(test_file_name)
 
     setup_df['const_int'] = 20
     setup_df['P'] = (setup_df['B'] + 1) * setup_df['const_int'] % 5
