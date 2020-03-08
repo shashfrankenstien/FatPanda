@@ -109,6 +109,9 @@ def test_mask_slice(setup_fixture):
     assert_df_equal(setup[2:7:2], df[2:7:2])
     assert_df_equal(setup[::5], df[::5])
     assert_df_equal(setup[::], df[::])
+    assert_df_equal(setup[::-1], df[::-1])
+    assert_df_equal(setup[7:2:-1], df[7:2:-1])
+    print(setup[::-2], df[::-2])
 
 
 

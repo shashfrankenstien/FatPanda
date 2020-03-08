@@ -32,33 +32,41 @@ class _TypesMixin:
 
 
 class _Query(storeBase):
-    def __init__(self, tablename, columns=None, conditions=[], limit=None, index_col='idx', set_journal_mode=True):
+    def __init__(self, tablename, columns=None, conditions=[], order_by=[], limit=None, index_col='idx', set_journal_mode=True):
         super().__init__(SQLITE_NAME, set_journal_mode=set_journal_mode)
-        self._index_col = index_col
+        self.tablename = tablename
+        self.set_index(index_col)
         if isinstance(columns, (list,set,tuple)):
             if self._index_col in columns:
                 columns.remove(self._index_col)
             columns = [self._index_col] + columns # set index column as first element of columns list
 
         self.columns = columns
-        self.tablename = tablename
         self.conditions = conditions
+        self.order_by = order_by
         self.limit = limit
 
+    def set_index(self, column):
+        self.execute(f"CREATE INDEX IF NOT EXISTS _fpdidx_{self.tablename}_{column} ON {self.tablename}({column})")
+        self._index_col = column
 
     def get_sql(self, limit=None):
         limit = limit or self.limit
         where_clause = ''
+        order_by_clause = ''
         limit_stmt = ''
+        columns = self.columns or ['*']
         if self.conditions:
             where_clause = f"WHERE {' AND '.join(self.conditions)}"
+        if self.order_by:
+            order_by_clause = f"ORDER BY {','.join([o.definition for o in self.order_by])}"
         if isinstance(limit, int):
             limit_stmt = f"LIMIT {limit}"
-        columns = self.columns or ['*']
         return f'''
             SELECT {','.join(columns)}
             FROM {self.tablename}
             {where_clause}
+            {order_by_clause}
             {limit_stmt}
             '''.strip()
 
@@ -228,8 +236,8 @@ class _VirtualSeries(_Series):
 
 class _DataFrame(_Query, _TypesMixin):
 
-    def __init__(self, tablename, columns=None, coltypes={}, conditions=[], limit=None, virtual={}):
-        super().__init__(tablename, columns=columns, conditions=conditions, limit=limit)
+    def __init__(self, tablename, columns=None, coltypes={}, conditions=[], order_by=[], limit=None, virtual={}):
+        super().__init__(tablename, columns=columns, conditions=conditions, order_by=order_by, limit=limit)
         self.coltypes = coltypes
         self.virtual = virtual
         if not self.coltypes: self.__learn()
@@ -286,6 +294,7 @@ class _DataFrame(_Query, _TypesMixin):
         return _DataFrame(self.tablename,
             columns=columns,
             conditions=self.conditions.copy(),
+            order_by=self.order_by.copy(),
             limit=self.limit,
             coltypes=coltypes,
             virtual=virtual
@@ -318,19 +327,23 @@ class _DataFrame(_Query, _TypesMixin):
     def __getitem__(self, key):
         if isinstance(key, slice):
             key = _Mask.from_slice(self._index_col, key)
-            if key is None:
+            if key is None: # Slice is empty. Returning a copy with no transformation
                 return self._shallow_copy()
 
         if isinstance(key, _Mask):
             df = self._shallow_copy()
             df.conditions.append(key.condition)
+            if len(key.order_by)>0:
+                df.order_by += key.order_by
             return df
+
         elif isinstance(key, (list,set,tuple)):
             if self._index_col not in key: key = [self._index_col] + list(key)
             for c in key:
                 if c not in self.columns:
                     raise KeyError(c)
             return self._shallow_copy(columns=key)
+
         else:
             coltypes = {
                 self._index_col: self.coltypes[self._index_col],

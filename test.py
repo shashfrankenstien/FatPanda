@@ -4,7 +4,7 @@ import sqlite3
 import pytest
 
 def test_csv():
-    df = fpd.concat_csv(["csv2.csv", "csv1.csv"])
+    df = fpd.concat_csv(["csv1.csv", "csv1.csv"])
     print(df)
 
     filtered = df[df['A']==2]
@@ -31,9 +31,9 @@ def test_csv():
 
     print(df.loc[3, ["A", "D"]])
     pddf = pd.read_csv("csv1.csv")
-    print(pddf[2:6:2])
-
-    sliced = df[2:6:2]
+    df = fpd.read_csv("csv1.csv")
+    print(pddf[7:2:-1])
+    sliced = df[7:2:-1]
     print(sliced)
     print(sliced.get_sql())
 

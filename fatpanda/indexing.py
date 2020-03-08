@@ -1,8 +1,12 @@
 from functools import reduce
+import warnings
+
+from fatpanda.sorting import _SortOrder
+from fatpanda.utils import PandasDivergenceWarning
 
 class _Mask(object):
     '''column mask'''
-    __slots__ = ['lhs', 'rhs', 'operation']
+    __slots__ = ['lhs', 'rhs', 'operation', 'order_by']
     def __init__(self, lhs, rhs, operation):
         if isinstance(lhs, _Mask):
             self.lhs = lhs.condition
@@ -13,12 +17,15 @@ class _Mask(object):
             self.rhs = f'"{rhs}"'
         elif isinstance(rhs, _Mask):
             self.rhs = rhs.condition
-        elif isinstance(rhs, (list,set,tuple,slice)):
+        elif isinstance(rhs, slice):
+            raise TypeError("Use _Mask.from_slice instead")
+        elif isinstance(rhs, (list,set,tuple)):
             raise NotImplementedError
         else:
             self.rhs = rhs
 
         self.operation = operation
+        self.order_by = []
 
 
     @property
@@ -62,21 +69,42 @@ class _Mask(object):
             lhs = lhs.condition
 
         masks = []
+        order_by = []
+        ascending = True
+        if slc.step is not None:
+            if slc.step == 0:
+                raise ValueError("slice step cannot be zero")
+            elif slc.step > 0:
+                so = _SortOrder(lhs, ascending=True)
+            elif slc.step < 0:
+                if slc.step < -1: warnings.warn(PandasDivergenceWarning(f"result for step = {slc.step} might diverge from pandas")) # FIXME
+                so = _SortOrder(lhs, ascending=False)
+
+            start = slc.start or 0
+            mod_val = f"(({lhs}-{start})%{abs(slc.step)})"
+            masks.append(cls(mod_val, 0, "=="))
+            order_by.append(so)
+            ascending = so.ascending
+
         if slc.start is not None:
-            masks.append(cls(lhs, slc.start, ">="))
+            if ascending:
+                masks.append(cls(lhs, slc.start, ">="))
+            else:
+                masks.append(cls(lhs, slc.start, "<="))
 
         if slc.stop is not None:
-            masks.append(cls(lhs, slc.stop, "<"))
-
-        if slc.step is not None:
-            start = slc.start or 0
-            mod_val = f"(({lhs}-{start})%{slc.step})"
-            masks.append(cls(mod_val, 0, "=="))
+            if ascending:
+                masks.append(cls(lhs, slc.stop, "<"))
+            else:
+                masks.append(cls(lhs, slc.stop, ">"))
 
         if masks:
-            return reduce(lambda m1,m2: m1 & m2, masks)
+            M = reduce(lambda m1,m2: m1 & m2, masks)
+            M.order_by += order_by
+            return M
         else:
-            return None
+            return None # Slice is empty
+
 
 
 

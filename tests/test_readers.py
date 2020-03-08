@@ -23,9 +23,10 @@ def test_concat_csv(setup_fixture):
 
 
 def test_read_sql_query(setup_fixture):
-    _, csvdf, _ = setup_fixture
+    setup, csvdf, _ = setup_fixture
 
     con = sqlite3.connect(fpd.SQLITE_NAME)
     df = fpd.read_sql_query(f"select * from {csvdf.tablename}", con)
     con.close()
     assert_df_equal(csvdf, df)
+    assert_df_equal(setup, df)
